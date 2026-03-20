@@ -13,6 +13,17 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS user_groups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    parent_id UUID REFERENCES user_groups(id) ON DELETE RESTRICT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_groups_parent_id ON user_groups(parent_id);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS user_group_id UUID REFERENCES user_groups(id) ON DELETE SET NULL;
+
 CREATE TABLE IF NOT EXISTS locations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
@@ -67,6 +78,28 @@ CREATE TABLE IF NOT EXISTS activities (
 CREATE INDEX IF NOT EXISTS idx_activities_start_time ON activities(start_time);
 CREATE INDEX IF NOT EXISTS idx_activities_end_time ON activities(end_time);
 CREATE INDEX IF NOT EXISTS idx_activities_location_id ON activities(location_id);
+
+CREATE TABLE IF NOT EXISTS chat_memberships (
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    group_id UUID REFERENCES user_groups(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT true,
+    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    left_at TIMESTAMP WITH TIME ZONE,
+    PRIMARY KEY (user_id, group_id)
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id UUID PRIMARY KEY,
+    group_id UUID REFERENCES user_groups(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    is_system BOOLEAN DEFAULT false,
+    is_admin BOOLEAN DEFAULT false
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_group_id ON chat_messages(group_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at);
 
 -- Insert default admin (password is 'shsimo2026' hashed with bcrypt)
 INSERT INTO users (username, password, role) 

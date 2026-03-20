@@ -2,17 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Modal from '../../components/Modal';
 import { toUTC8InputString, fromUTC8InputString } from '../../utils/dateUtils';
+import { Folder, User, MapPin, ChevronRight, Home, Users } from 'lucide-react';
 
 export default function AdminDashboard() {
   const { token } = useAuth();
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('users_and_groups');
   const [data, setData] = useState<any>({
     users: [],
     locations: [],
     schedules: [],
     activities: [],
-    groups: []
+    groups: [],
+    user_groups: []
   });
+
+  // Navigation states
+  const [currentGroupId, setCurrentGroupId] = useState<string | null>(null);
+  const [currentLocationId, setCurrentLocationId] = useState<string | null>(null);
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -21,17 +27,19 @@ export default function AdminDashboard() {
   const [formData, setFormData] = useState<any>({});
   const [errorMsg, setErrorMsg] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [modalType, setModalType] = useState<string>('');
 
   const fetchData = async () => {
     try {
-      const [users, locations, schedules, activities, groups] = await Promise.all([
+      const [users, locations, schedules, activities, groups, user_groups] = await Promise.all([
         fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } }).then(res => res.json()),
         fetch('/api/locations', { headers: { Authorization: `Bearer ${token}` } }).then(res => res.json()),
         fetch('/api/schedules', { headers: { Authorization: `Bearer ${token}` } }).then(res => res.json()),
         fetch('/api/activities', { headers: { Authorization: `Bearer ${token}` } }).then(res => res.json()),
-        fetch('/api/groups', { headers: { Authorization: `Bearer ${token}` } }).then(res => res.json())
+        fetch('/api/groups', { headers: { Authorization: `Bearer ${token}` } }).then(res => res.json()),
+        fetch('/api/admin/user-groups', { headers: { Authorization: `Bearer ${token}` } }).then(res => res.json())
       ]);
-      setData({ users, locations, schedules, activities, groups });
+      setData({ users, locations, schedules, activities, groups, user_groups });
     } catch (err) {
       console.error(err);
     }
@@ -46,8 +54,9 @@ export default function AdminDashboard() {
     setIsDeleteModalOpen(true);
   };
 
-  const openEditModal = (item: any) => {
+  const openEditModal = (type: string, item: any) => {
     setIsEditing(true);
+    setModalType(type);
     let editData = { ...item };
     
     // Format dates for input
@@ -55,8 +64,12 @@ export default function AdminDashboard() {
     if (editData.end_time) editData.end_time = toUTC8InputString(editData.end_time);
     
     // For users, don't pre-fill password
-    if (activeTab === 'users') {
+    if (type === 'users') {
       editData.password = '';
+    }
+    
+    if (type === 'user_groups') {
+      editData.userIds = data.users.filter((u: any) => u.user_group_id === item.id).map((u: any) => u.id);
     }
     
     setFormData(editData);
@@ -68,7 +81,7 @@ export default function AdminDashboard() {
     if (!itemToDelete) return;
     try {
       const { type, id } = itemToDelete;
-      const endpoint = type === 'users' ? `/api/admin/users/${id}` : `/api/${type}/${id}`;
+      const endpoint = (type === 'users' || type === 'user_groups') ? `/api/admin/${type.replace('_', '-')}/${id}` : `/api/${type}/${id}`;
       const res = await fetch(endpoint, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
@@ -91,7 +104,7 @@ export default function AdminDashboard() {
     e.preventDefault();
     setErrorMsg('');
     try {
-      const endpoint = activeTab === 'users' ? '/api/admin/users' : `/api/${activeTab}`;
+      const endpoint = (modalType === 'users' || modalType === 'user_groups') ? `/api/admin/${modalType.replace('_', '-')}` : `/api/${modalType}`;
       const url = isEditing ? `${endpoint}/${formData.id}` : endpoint;
       const method = isEditing ? 'PUT' : 'POST';
       
@@ -137,35 +150,82 @@ export default function AdminDashboard() {
     return loc.name;
   };
 
-  // Helper to sort locations hierarchically
-  const getHierarchicalLocations = () => {
-    const locations = data.locations || [];
-    const roots = locations.filter((l: any) => !l.parent_id);
-    const result: any[] = [];
-
-    const traverse = (node: any, depth: number) => {
-      result.push({ ...node, depth });
-      const children = locations.filter((l: any) => l.parent_id === node.id);
-      children.forEach(child => traverse(child, depth + 1));
-    };
-
-    roots.forEach(root => traverse(root, 0));
+  const getUserGroupPath = (groupId: string, visited = new Set<string>()): string => {
+    if (visited.has(groupId)) return '[Circular Reference]';
+    visited.add(groupId);
     
-    // Add any orphans that might exist due to bad data
-    const addedIds = new Set(result.map(r => r.id));
-    locations.forEach((l: any) => {
-      if (!addedIds.has(l.id)) {
-        result.push({ ...l, depth: 0 });
-      }
-    });
-
-    return result;
+    const group = data.user_groups.find((g: any) => g.id === groupId);
+    if (!group) return '';
+    if (group.parent_id) {
+      return `${getUserGroupPath(group.parent_id, visited)} > ${group.name}`;
+    }
+    return group.name;
   };
 
-  const displayData = activeTab === 'locations' ? getHierarchicalLocations() : data[activeTab];
+  const getDisplayData = () => {
+    if (activeTab === 'users_and_groups') {
+      const groups = data.user_groups.filter((g: any) => (g.parent_id || null) === currentGroupId).map((g: any) => ({ ...g, itemType: 'user_groups' }));
+      const users = data.users.filter((u: any) => (u.user_group_id || null) === currentGroupId).map((u: any) => ({ ...u, itemType: 'users' }));
+      return [...groups, ...users];
+    } else if (activeTab === 'locations') {
+      return data.locations.filter((l: any) => (l.parent_id || null) === currentLocationId).map((l: any) => ({ ...l, itemType: 'locations' }));
+    }
+    return data[activeTab]?.map((item: any) => ({ ...item, itemType: activeTab })) || [];
+  };
+
+  const displayData = getDisplayData();
+
+  const renderBreadcrumbs = () => {
+    if (activeTab === 'users_and_groups') {
+      const crumbs = [];
+      let curr = currentGroupId;
+      while (curr) {
+        const g = data.user_groups.find((g: any) => g.id === curr);
+        if (!g) break;
+        crumbs.unshift(g);
+        curr = g.parent_id;
+      }
+      return (
+        <div className="flex items-center space-x-2 text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <button onClick={() => setCurrentGroupId(null)} className="flex items-center hover:text-indigo-600 transition-colors font-medium">
+            <Home className="w-4 h-4 mr-1" /> Root
+          </button>
+          {crumbs.map(c => (
+            <React.Fragment key={c.id}>
+              <ChevronRight className="w-4 h-4 text-slate-400" />
+              <button onClick={() => setCurrentGroupId(c.id)} className="hover:text-indigo-600 transition-colors font-medium">{c.name}</button>
+            </React.Fragment>
+          ))}
+        </div>
+      );
+    } else if (activeTab === 'locations') {
+      const crumbs = [];
+      let curr = currentLocationId;
+      while (curr) {
+        const l = data.locations.find((l: any) => l.id === curr);
+        if (!l) break;
+        crumbs.unshift(l);
+        curr = l.parent_id;
+      }
+      return (
+        <div className="flex items-center space-x-2 text-sm text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-200">
+          <button onClick={() => setCurrentLocationId(null)} className="flex items-center hover:text-indigo-600 transition-colors font-medium">
+            <Home className="w-4 h-4 mr-1" /> Root
+          </button>
+          {crumbs.map(c => (
+            <React.Fragment key={c.id}>
+              <ChevronRight className="w-4 h-4 text-slate-400" />
+              <button onClick={() => setCurrentLocationId(c.id)} className="hover:text-indigo-600 transition-colors font-medium">{c.name}</button>
+            </React.Fragment>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
 
   const renderFormFields = () => {
-    switch (activeTab) {
+    switch (modalType) {
       case 'users':
         return (
           <>
@@ -176,6 +236,72 @@ export default function AdminDashboard() {
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 mb-1">Password {isEditing && '(Leave blank to keep current)'}</label>
               <input type="password" required={!isEditing} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" value={formData.password || ''} onChange={e => setFormData({...formData, password: e.target.value})} />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-1">User Group (Optional)</label>
+              <select className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" value={formData.user_group_id || ''} onChange={e => setFormData({...formData, user_group_id: e.target.value})}>
+                <option value="">None</option>
+                {data.user_groups.map((g: any) => (
+                  <option key={g.id} value={g.id}>{getUserGroupPath(g.id)}</option>
+                ))}
+              </select>
+            </div>
+          </>
+        );
+      case 'user_groups':
+        return (
+          <>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+              <input type="text" required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Parent Group (Optional)</label>
+              <select className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" value={formData.parent_id || ''} onChange={e => setFormData({...formData, parent_id: e.target.value})}>
+                <option value="">None</option>
+                {data.user_groups.map((g: any) => (
+                  <option key={g.id} value={g.id} disabled={g.id === formData.id}>{getUserGroupPath(g.id)}</option>
+                ))}
+              </select>
+            </div>
+            {isEditing && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Sub-groups</label>
+                <div className="text-sm text-slate-600 bg-slate-50 p-2 rounded border border-slate-200">
+                  {data.user_groups.filter((g: any) => g.parent_id === formData.id).length > 0 ? (
+                    <ul className="list-disc pl-5">
+                      {data.user_groups.filter((g: any) => g.parent_id === formData.id).map((g: any) => (
+                        <li key={g.id}>{g.name}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="text-slate-400 italic">No sub-groups</span>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Users in this Group</label>
+              <div className="max-h-48 overflow-y-auto border border-slate-300 rounded-lg p-2">
+                {data.users.map((user: any) => (
+                  <label key={user.id} className="flex items-center space-x-2 p-1 hover:bg-slate-50 rounded">
+                    <input 
+                      type="checkbox" 
+                      checked={(formData.userIds || []).includes(user.id)}
+                      onChange={(e) => {
+                        const currentIds = formData.userIds || [];
+                        if (e.target.checked) {
+                          setFormData({...formData, userIds: [...currentIds, user.id]});
+                        } else {
+                          setFormData({...formData, userIds: currentIds.filter((id: string) => id !== user.id)});
+                        }
+                      }}
+                      className="rounded text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>{user.username}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </>
         );
@@ -191,7 +317,7 @@ export default function AdminDashboard() {
               <select className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" value={formData.parent_id || ''} onChange={e => setFormData({...formData, parent_id: e.target.value})}>
                 <option value="">None</option>
                 {data.locations.map((loc: any) => (
-                  <option key={loc.id} value={loc.id}>{getLocationPath(loc.id)}</option>
+                  <option key={loc.id} value={loc.id} disabled={loc.id === formData.id}>{getLocationPath(loc.id)}</option>
                 ))}
               </select>
             </div>
@@ -308,7 +434,7 @@ export default function AdminDashboard() {
   };
 
   const tabs = [
-    { id: 'users', label: 'Users' },
+    { id: 'users_and_groups', label: 'Users & Groups' },
     { id: 'locations', label: 'Locations' },
     { id: 'groups', label: 'Schedule Groups' },
     { id: 'schedules', label: 'Schedules' },
@@ -325,6 +451,8 @@ export default function AdminDashboard() {
             key={tab.id}
             onClick={() => {
               setActiveTab(tab.id);
+              setCurrentGroupId(null);
+              setCurrentLocationId(null);
               setFormData({});
               setErrorMsg('');
             }}
@@ -341,86 +469,132 @@ export default function AdminDashboard() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-          <h2 className="font-semibold text-slate-900 capitalize">{activeTab} Management</h2>
-          <button 
-            onClick={() => {
-              setFormData(activeTab === 'groups' ? { color: '#4f46e5' } : {});
-              setErrorMsg('');
-              setIsAddModalOpen(true);
-            }}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            + Add New
-          </button>
+          <h2 className="font-semibold text-slate-900 capitalize">
+            {activeTab === 'users_and_groups' ? 'Users & Groups' : activeTab} Management
+          </h2>
+          <div className="flex space-x-2">
+            {activeTab === 'users_and_groups' ? (
+              <>
+                <button 
+                  onClick={() => {
+                    setModalType('users');
+                    setFormData({ user_group_id: currentGroupId });
+                    setErrorMsg('');
+                    setIsAddModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  + Add User
+                </button>
+                <button 
+                  onClick={() => {
+                    setModalType('user_groups');
+                    setFormData({ parent_id: currentGroupId });
+                    setErrorMsg('');
+                    setIsAddModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  + Add Group
+                </button>
+              </>
+            ) : (
+              <button 
+                onClick={() => {
+                  setModalType(activeTab);
+                  setFormData(activeTab === 'locations' ? { parent_id: currentLocationId } : (activeTab === 'groups' ? { color: '#4f46e5' } : {}));
+                  setErrorMsg('');
+                  setIsAddModalOpen(true);
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                + Add New
+              </button>
+            )}
+          </div>
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-3">ID</th>
-                <th className="px-6 py-3">Name / Title</th>
-                <th className="px-6 py-3">Details</th>
-                <th className="px-6 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayData?.length === 0 ? (
+        <div className="p-4">
+          {renderBreadcrumbs()}
+          
+          <div className="overflow-x-auto border border-slate-200 rounded-lg">
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200">
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-slate-400">No data found.</td>
+                  <th className="px-6 py-3">Name / Title</th>
+                  <th className="px-6 py-3">Details</th>
+                  <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
-              ) : (
-                displayData?.map((item: any) => (
-                  <tr key={item.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="px-6 py-4 font-mono text-xs text-slate-400">{item.id.slice(0, 8)}...</td>
-                    <td className="px-6 py-4 font-medium text-slate-900">
-                      {activeTab === 'locations' ? (
-                        <span style={{ paddingLeft: `${(item.depth || 0) * 1.5}rem` }} className="flex items-center">
-                          {item.depth > 0 && <span className="text-slate-300 mr-2">└</span>}
-                          {item.name}
-                        </span>
-                      ) : (
-                        item.username || item.name || item.title
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      {activeTab === 'users' && `Role: ${item.role}`}
-                      {activeTab === 'locations' && `Parent: ${item.parent_id ? getLocationPath(item.parent_id) : 'No'}`}
-                      {activeTab === 'groups' && (
-                        <span className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></span>
-                          {item.color}
-                        </span>
-                      )}
-                      {activeTab === 'schedules' && `Loc: ${getLocationPath(item.location_id)}`}
-                      {activeTab === 'activities' && `Type: ${item.time_type}`}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => openEditModal(item)}
-                        className="text-indigo-600 hover:text-indigo-800 font-medium text-xs px-3 py-1 rounded-md hover:bg-indigo-50 transition-colors mr-2"
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        onClick={() => confirmDelete(activeTab, item.id)}
-                        className="text-red-600 hover:text-red-800 font-medium text-xs px-3 py-1 rounded-md hover:bg-red-50 transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </td>
+              </thead>
+              <tbody>
+                {displayData?.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-6 py-8 text-center text-slate-400">This folder is empty.</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  displayData?.map((item: any) => (
+                    <tr key={item.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 font-medium text-slate-900">
+                        {item.itemType === 'user_groups' || item.itemType === 'locations' ? (
+                          <button 
+                            onClick={() => {
+                              if (item.itemType === 'user_groups') setCurrentGroupId(item.id);
+                              if (item.itemType === 'locations') setCurrentLocationId(item.id);
+                            }}
+                            className="flex items-center hover:text-indigo-600 transition-colors text-left"
+                          >
+                            {item.itemType === 'user_groups' ? <Users className="w-5 h-5 mr-2 text-indigo-400" /> : <Folder className="w-5 h-5 mr-2 text-indigo-400" />}
+                            {item.name}
+                          </button>
+                        ) : item.itemType === 'users' ? (
+                          <div className="flex items-center">
+                            <User className="w-5 h-5 mr-2 text-slate-400" />
+                            {item.username}
+                          </div>
+                        ) : (
+                          item.username || item.name || item.title
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {item.itemType === 'users' && `Role: ${item.role}`}
+                        {item.itemType === 'user_groups' && `Group ID: ${item.id.slice(0, 8)}...`}
+                        {item.itemType === 'locations' && `Location ID: ${item.id.slice(0, 8)}...`}
+                        {item.itemType === 'groups' && (
+                          <span className="flex items-center gap-2">
+                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></span>
+                            {item.color}
+                          </span>
+                        )}
+                        {item.itemType === 'schedules' && `Loc: ${getLocationPath(item.location_id)}`}
+                        {item.itemType === 'activities' && `Type: ${item.time_type}`}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button 
+                          onClick={() => openEditModal(item.itemType, item)}
+                          className="text-indigo-600 hover:text-indigo-800 font-medium text-xs px-3 py-1 rounded-md hover:bg-indigo-50 transition-colors mr-2"
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => confirmDelete(item.itemType, item.id)}
+                          className="text-red-600 hover:text-red-800 font-medium text-xs px-3 py-1 rounded-md hover:bg-red-50 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
       <Modal 
         isOpen={isAddModalOpen} 
         onClose={() => setIsAddModalOpen(false)} 
-        title={`Add New ${activeTab.slice(0, -1)}`}
+        title={`${isEditing ? 'Edit' : 'Add New'} ${modalType.replace('_', ' ').replace(/s$/, '')}`}
       >
         <form onSubmit={handleAddSubmit}>
           {errorMsg && (

@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import CalendarView from './pages/CalendarView';
 import MapView from './pages/MapView';
 import Settings from './pages/Settings';
+import Chat from './pages/Chat';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import Layout from './components/Layout';
 
@@ -31,10 +32,12 @@ export default function App() {
             <Route path="calendar" element={<CalendarView />} />
             <Route path="map" element={<MapView />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="chat" element={<Chat />} />
           </Route>
 
           <Route path="/admin" element={<ProtectedRoute requireAdmin><Layout isAdmin /></ProtectedRoute>}>
             <Route index element={<AdminDashboard />} />
+            <Route path="chat" element={<Chat />} />
           </Route>
         </Routes>
       </Router>

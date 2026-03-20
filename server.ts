@@ -8,15 +8,22 @@ import scheduleRoutes from './server/routes/schedule.js';
 import locationRoutes from './server/routes/location.js';
 import activityRoutes from './server/routes/activity.js';
 import groupRoutes from './server/routes/group.js';
+import chatRoutes from './server/routes/chat.js';
 import { testDbConnection, pool } from './server/db.js';
 import fs from 'fs';
 import path from 'path';
+import { createServer } from 'http';
+import { setupSocketIO } from './server/socket.js';
+import { syncAllUsersChatGroups } from './server/services/chat.js';
 
 dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 54321;
+  const PORT = Number(process.env.PORT) || 54321;
+  const httpServer = createServer(app);
+  
+  setupSocketIO(httpServer);
 
   app.use(cors());
   app.use(express.json());
@@ -29,6 +36,9 @@ async function startServer() {
       const initSql = fs.readFileSync(initSqlPath, 'utf8');
       await pool.query(initSql);
       console.log('Database initialized successfully.');
+      
+      // Sync chat groups on startup
+      await syncAllUsersChatGroups();
     }
   } catch (err) {
     console.error('Database initialization failed:', err);
@@ -41,6 +51,7 @@ async function startServer() {
   app.use('/api/locations', locationRoutes);
   app.use('/api/activities', activityRoutes);
   app.use('/api/groups', groupRoutes);
+  app.use('/api/chat', chatRoutes);
 
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
@@ -62,7 +73,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

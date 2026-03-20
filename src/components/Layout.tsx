@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Home, Calendar, Map as MapIcon, Settings, LogOut, Shield } from 'lucide-react';
+import { Home, Calendar, Map as MapIcon, Settings, LogOut, Shield, MessageSquare } from 'lucide-react';
 
 export default function Layout({ isAdmin = false }: { isAdmin?: boolean }) {
   const { user, logout } = useAuth();
@@ -8,12 +8,14 @@ export default function Layout({ isAdmin = false }: { isAdmin?: boolean }) {
 
   const navItems = isAdmin ? [
     { name: 'Dashboard', path: '/admin', icon: Shield },
+    { name: 'Chat', path: '/admin/chat', icon: MessageSquare },
     { name: 'Settings', path: '/settings', icon: Settings },
     { name: 'Back to App', path: '/', icon: Home },
   ] : [
     { name: 'Dashboard', path: '/', icon: Home },
     { name: 'Calendar', path: '/calendar', icon: Calendar },
     { name: 'Map', path: '/map', icon: MapIcon },
+    { name: 'Chat', path: '/chat', icon: MessageSquare },
     { name: 'Settings', path: '/settings', icon: Settings },
     ...(user?.role === 'ADMIN' ? [{ name: 'Admin', path: '/admin', icon: Shield }] : []),
   ];
