@@ -1,6 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import { ChatProvider } from './context/ChatContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import CalendarView from './pages/CalendarView';
@@ -12,8 +14,9 @@ import Layout from './components/Layout';
 
 const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.ReactNode, requireAdmin?: boolean }) => {
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
   
-  if (loading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
+  if (loading) return <div className="flex h-screen items-center justify-center">{t('loading')}</div>;
   if (!user) return <Navigate to="/login" />;
   if (requireAdmin && user.role !== 'ADMIN') return <Navigate to="/" />;
   
@@ -22,25 +25,29 @@ const ProtectedRoute = ({ children, requireAdmin = false }: { children: React.Re
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-            <Route index element={<Dashboard />} />
-            <Route path="calendar" element={<CalendarView />} />
-            <Route path="map" element={<MapView />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="chat" element={<Chat />} />
-          </Route>
+    <LanguageProvider>
+      <AuthProvider>
+        <ChatProvider>
+          <Router>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              
+              <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                <Route index element={<Dashboard />} />
+                <Route path="calendar" element={<CalendarView />} />
+                <Route path="map" element={<MapView />} />
+                <Route path="settings" element={<Settings />} />
+                <Route path="chat" element={<Chat />} />
+              </Route>
 
-          <Route path="/admin" element={<ProtectedRoute requireAdmin><Layout isAdmin /></ProtectedRoute>}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="chat" element={<Chat />} />
-          </Route>
-        </Routes>
-      </Router>
-    </AuthProvider>
+              <Route path="/admin" element={<ProtectedRoute requireAdmin><Layout isAdmin /></ProtectedRoute>}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="chat" element={<Chat />} />
+              </Route>
+            </Routes>
+          </Router>
+        </ChatProvider>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }

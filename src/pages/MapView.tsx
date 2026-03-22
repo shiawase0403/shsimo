@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { format, parseISO } from 'date-fns';
+import Map, { Marker, NavigationControl } from 'react-map-gl/maplibre';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { MapPin } from 'lucide-react';
 
 export default function MapView() {
   const { token } = useAuth();
+  const { t } = useLanguage();
   const [locations, setLocations] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
@@ -32,25 +37,74 @@ export default function MapView() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full bg-slate-100 relative">
+    <div className="flex flex-col md:flex-row flex-1 w-full bg-slate-100 relative overflow-hidden">
       {/* Map Area */}
-      <div className="flex-1 p-4 md:p-8 overflow-auto">
-        <h1 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">Campus Map (Simulated)</h1>
-        
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="flex-1 relative h-full w-full">
+        <Map
+          initialViewState={{
+            longitude: 121.432,
+            latitude: 31.141,
+            zoom: 15,
+            pitch: 45,
+            bearing: -17.6
+          }}
+          style={{ width: '100%', height: '100%' }}
+          mapStyle="/style.json"
+          transformRequest={(url) => {
+            if (url.startsWith('/')) {
+              return { url: `${window.location.origin}${url}` };
+            }
+            return { url };
+          }}
+          minZoom={15}
+          maxZoom={22}
+          maxBounds={[
+            [121.420, 31.130], // Southwest coordinates
+            [121.445, 31.150]  // Northeast coordinates
+          ]}
+        >
+          <NavigationControl position="top-right" />
+          
           {rootLocations.map(root => (
-            <div key={root.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6 flex flex-col items-center justify-center min-h-[150px] md:min-h-[200px] cursor-pointer hover:border-indigo-500 hover:shadow-md transition-all" onClick={() => handleLocationClick(root)}>
-              <div className="text-3xl md:text-4xl mb-2 md:mb-4">🏫</div>
-              <h3 className="text-base md:text-lg font-bold text-slate-900 text-center">{root.name}</h3>
-              
-              {/* Show sub-locations count */}
-              {getChildren(root.id).length > 0 && (
-                <span className="mt-2 text-[10px] md:text-xs font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
-                  {getChildren(root.id).length} sub-areas
-                </span>
-              )}
-            </div>
+            root.longitude && root.latitude ? (
+              <Marker 
+                key={root.id} 
+                longitude={root.longitude} 
+                latitude={root.latitude}
+                anchor="bottom"
+                onClick={e => {
+                  e.originalEvent.stopPropagation();
+                  handleLocationClick(root);
+                }}
+              >
+                <div className="flex flex-col items-center cursor-pointer transform hover:scale-110 transition-transform">
+                  <div className="bg-white px-2 py-1 rounded-md shadow-md text-xs font-bold text-slate-800 mb-1 whitespace-nowrap">
+                    {root.name}
+                  </div>
+                  <MapPin className="text-indigo-600 w-8 h-8 drop-shadow-md" fill="white" />
+                </div>
+              </Marker>
+            ) : null
           ))}
+        </Map>
+        
+        {/* Fallback for locations without coordinates */}
+        <div className="absolute bottom-4 left-4 right-4 md:right-auto md:w-80 bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+          <h3 className="text-sm font-bold text-slate-700 mb-2">{t('unmappedLocations')}</h3>
+          <div className="flex flex-wrap gap-2">
+            {rootLocations.filter(l => !l.longitude || !l.latitude).map(root => (
+              <button 
+                key={root.id}
+                onClick={() => handleLocationClick(root)}
+                className="text-xs bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 px-3 py-1.5 rounded-full border border-slate-200 transition-colors"
+              >
+                {root.name}
+              </button>
+            ))}
+            {rootLocations.filter(l => !l.longitude || !l.latitude).length === 0 && (
+              <span className="text-xs text-slate-500 italic">{t('allLocationsMapped')}</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -68,7 +122,7 @@ export default function MapView() {
             {/* Sub-locations */}
             {getChildren(selectedLocation.id).length > 0 && (
               <section>
-                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Sub-Locations</h3>
+                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">{t('subLocations')}</h3>
                 <div className="space-y-2">
                   {getChildren(selectedLocation.id).map(child => (
                     <button 
@@ -85,7 +139,7 @@ export default function MapView() {
 
             {/* Schedules */}
             <section>
-              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Schedules Here</h3>
+              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">{t('schedulesHere')}</h3>
               <div className="space-y-3">
                 {schedules.filter(s => s.location_id === selectedLocation.id).map(s => (
                   <div key={s.id} className="p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -96,14 +150,14 @@ export default function MapView() {
                   </div>
                 ))}
                 {schedules.filter(s => s.location_id === selectedLocation.id).length === 0 && (
-                  <p className="text-sm text-slate-400 italic">No schedules here.</p>
+                  <p className="text-sm text-slate-400 italic">{t('noSchedulesHere')}</p>
                 )}
               </div>
             </section>
 
             {/* Activities */}
             <section>
-              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Activities Here</h3>
+              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">{t('activitiesHere')}</h3>
               <div className="space-y-3">
                 {activities.filter(a => a.location_id === selectedLocation.id).map(a => (
                   <div key={a.id} className="p-4 rounded-xl border border-slate-200 bg-indigo-50 shadow-sm">
@@ -112,7 +166,7 @@ export default function MapView() {
                   </div>
                 ))}
                 {activities.filter(a => a.location_id === selectedLocation.id).length === 0 && (
-                  <p className="text-sm text-slate-400 italic">No activities here.</p>
+                  <p className="text-sm text-slate-400 italic">{t('noActivitiesHere')}</p>
                 )}
               </div>
             </section>

@@ -1,0 +1,209 @@
+{
+  "version": 8,
+  "name": "Mapbox Local Light",
+  "sources": {
+    "mapbox-local": {
+      "type": "vector",
+      "tiles": [
+        "/tiles/{z}/{x}/{y}.mvt"
+      ],
+      "minzoom": 15,
+      "maxzoom": 16
+    }
+  },
+  "sprite": "/sprite/sprite",
+  "glyphs": "/fonts/{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#f2efe9"
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "mapbox-local",
+      "source-layer": "water",
+      "paint": {
+        "fill-color": "#a0c8f0" 
+      }
+    },
+    {
+      "id": "landuse-greenery",
+      "type": "fill",
+      "source": "mapbox-local",
+      "source-layer": "landuse",
+      "filter": ["match", ["get", "class"], ["park", "pitch", "grass", "garden", "wood"], true, false],
+      "paint": {
+        "fill-color": "#ABE4A1" 
+      }
+    },
+    {
+      "id": "road-minor",
+      "type": "line",
+      "source": "mapbox-local",
+      "source-layer": "road",
+      "filter": ["match", ["get", "class"], ["street", "street_limited", "pedestrian", "path", "service", "track"], true, false],
+      "paint": {
+        "line-color": "#ffffff",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 15, 1, 18, 4],
+        "line-opacity": 0.8
+      }
+    },
+    {
+      "id": "road-major",
+      "type": "line",
+      "source": "mapbox-local",
+      "source-layer": "road",
+      "filter": ["match", ["get", "class"], ["motorway", "primary", "secondary", "trunk"], true, false],
+      "paint": {
+        "line-color": "#ffffff",
+        "line-width": 4
+      }
+    },
+    {
+      "id": "building-3d",
+      "type": "fill-extrusion",
+      "source": "mapbox-local",
+      "source-layer": "building",
+      "paint": {
+        "fill-extrusion-color": ["interpolate", ["linear"], ["get", "height"],0, "#f2f2f2",20, "#e0ddd5"],
+        "fill-extrusion-height": ["coalesce", ["get", "height"], 10],
+        "fill-extrusion-base": ["coalesce", ["get", "min_height"], 0],
+        "fill-extrusion-opacity": 0.85
+      }
+    },
+    {
+      "id": "road-campus",
+      "type": "line",
+      "source": "mapbox-local",
+      "source-layer": "road",
+      "filter": ["match", ["get", "class"], ["street", "street_limited", "pedestrian", "path", "service", "track"], true, false],
+      "paint": {
+        "line-color": "#ffffff",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 15, 0.5, 18, 3],
+        "line-opacity": 0.5
+      }
+    },
+    {
+      "id": "label-water",
+      "type": "symbol",
+      "source": "mapbox-local",
+      "source-layer": "natural_label",
+      "filter": ["==", ["get", "class"], "water"],
+      "layout": {
+        "text-field": "{name}",
+        "text-font": ["Open Sans Bold"],
+        "text-size": 12,
+        "text-letter-spacing": 0.2
+      },
+      "paint": {
+        "text-color": "#4b85b6",
+        "text-halo-color": "rgba(255,255,255,0.7)",
+        "text-halo-width": 1
+      }
+    },
+    {
+      "id": "label-sports",
+      "type": "symbol",
+      "source": "mapbox-local",
+      "source-layer": "poi_label",
+      "filter": ["match", ["get", "class"], ["sport_and_leisure","park_like"],true,false],
+      "layout": {
+        "icon-image": ["get", "maki"], 
+        "icon-size": 1,
+        "text-field": "{name}",
+        "text-font": ["Open Sans Bold"],
+        "text-size": 11,
+        "text-anchor": "top",
+        "text-offset": [0, 0.5]
+      },
+      "paint": {
+        "text-color": "#3a766a",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1
+      }
+    },
+    {
+      "id": "label-education",
+      "type": "symbol",
+      "source": "mapbox-local",
+      "source-layer": "poi_label",
+      "filter": ["match", ["get", "class"], ["education", "public_facilities"], true, false],
+      "layout": {
+        "icon-image": ["get", "maki"], 
+        "icon-size": 1,
+        "text-field": "{name}",
+        "text-font": ["Open Sans Bold"],
+        "text-size": 12,
+        "text-anchor": "top",
+        "text-offset": [0, 0.5]
+      },
+      "paint": {
+        "text-color": "#53626f",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1
+      }
+    },
+    {
+      "id": "label-services",
+      "type": "symbol",
+      "source": "mapbox-local",
+      "source-layer": "poi_label",
+      "filter": ["match", ["get", "class"], ["food_and_drink", "commercial", "medical"], true, false],
+      "layout": {
+        "icon-image": ["get", "maki"],
+        "icon-size": 1,
+        "text-field": "{name}",
+        "text-font": ["Open Sans Bold"],
+        "text-size": 11,
+        "text-anchor": "top",
+        "text-offset": [0, 0.5]
+      },
+      "paint": {
+        "text-color": "#9b59b6",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1
+      }
+    },
+    
+    {
+      "id": "label-minor-place",
+      "type": "symbol",
+      "source": "mapbox-local",
+      "source-layer": "poi_label",
+      "filter": ["==", ["get", "class"], "place_like"],
+      "layout": {
+        "text-field": "{name}",
+        "text-font": ["Open Sans Bold"],
+        "text-size": 10
+      },
+      "paint": {
+        "text-color": "#7f8c8d", 
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1
+      }
+    },
+    
+    {
+      "id": "label-academic",
+      "type": "symbol",
+      "source": "mapbox-local",
+      "source-layer": "poi_label",
+      "filter": ["match", ["get", "class"], ["school", "college", "library", "civic_building","building"], true, false],
+      "layout": {
+        "text-field": "{name}",
+        "text-font": ["Open Sans Bold"],
+        "text-size": 13,
+        "text-padding": 5
+      },
+      "paint": {
+        "text-color": "#444444",
+        "text-halo-color": "rgba(255,255,255,0.8)",
+        "text-halo-width": 1.5
+      }
+    }
+  ]
+}

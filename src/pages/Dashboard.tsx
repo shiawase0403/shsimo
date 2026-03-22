@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { isTodayUTC8, isOngoingUTC8, formatUTC8, isFutureUTC8 } from '../utils/dateUtils';
 
 export default function Dashboard() {
   const { token, user } = useAuth();
+  const { t } = useLanguage();
   const [schedules, setSchedules] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -36,7 +38,7 @@ export default function Dashboard() {
   }, [token]);
 
   const getLocationPath = (locId: string, visited = new Set<string>()): string => {
-    if (visited.has(locId)) return '[Circular Reference]';
+    if (visited.has(locId)) return t('circularReference');
     visited.add(locId);
     
     const loc = locations.find((l: any) => l.id === locId);
@@ -59,22 +61,22 @@ export default function Dashboard() {
     return isTodayUTC8(a.start_time) && (isOngoingUTC8(a.start_time, a.end_time) || isFutureUTC8(a.start_time));
   });
 
-  if (loading) return <div className="p-4 md:p-8">Loading dashboard...</div>;
+  if (loading) return <div className="p-4 md:p-8">{t('loading')}</div>;
 
   return (
     <div className="p-4 md:p-8">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Welcome back, {user?.username}</h1>
+      <h1 className="text-2xl font-bold text-slate-900 mb-6">{t('welcome')}, {user?.username}</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
         {/* Today's Schedules */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Today's Tasks
+            {t('todaysTasks')}
           </h2>
           
           {todaysSchedules.length === 0 ? (
-            <p className="text-slate-500 text-sm">No tasks remaining for today.</p>
+            <p className="text-slate-500 text-sm">{t('noTasksRemaining')}</p>
           ) : (
             <div className="space-y-4">
               {todaysSchedules.map(s => {
@@ -83,7 +85,7 @@ export default function Dashboard() {
                   <div key={s.id} className={`p-4 rounded-xl border ${isOngoing ? 'bg-emerald-50 border-emerald-200 shadow-sm' : 'bg-slate-50 border-slate-100'}`}>
                     <div className="flex justify-between items-start mb-2">
                       <h3 className={`font-medium ${isOngoing ? 'text-emerald-900' : 'text-slate-900'}`}>
-                        {s.title} {isOngoing && <span className="text-xs ml-2 bg-emerald-500 text-white px-2 py-0.5 rounded-full">Ongoing</span>}
+                        {s.title} {isOngoing && <span className="text-xs ml-2 bg-emerald-500 text-white px-2 py-0.5 rounded-full">{t('ongoing')}</span>}
                       </h3>
                       {s.group_name && (
                         <span 
@@ -109,11 +111,11 @@ export default function Dashboard() {
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-            Today's Events & Venues
+            {t('todaysEvents')}
           </h2>
           
           {todaysActivities.length === 0 ? (
-            <p className="text-slate-500 text-sm">No activities remaining for today.</p>
+            <p className="text-slate-500 text-sm">{t('noActivitiesRemaining')}</p>
           ) : (
             <div className="space-y-4">
               {todaysActivities.map(a => {
@@ -122,7 +124,7 @@ export default function Dashboard() {
                   <div key={a.id} className={`p-4 rounded-xl border ${isOngoing ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-slate-50 border-slate-100'}`}>
                     <div className="flex justify-between items-start mb-2">
                       <h3 className={`font-medium ${isOngoing ? 'text-indigo-900' : 'text-slate-900'}`}>
-                        {a.title} {isOngoing && <span className="text-xs ml-2 bg-indigo-500 text-white px-2 py-0.5 rounded-full">Active</span>}
+                        {a.title} {isOngoing && <span className="text-xs ml-2 bg-indigo-500 text-white px-2 py-0.5 rounded-full">{t('active')}</span>}
                       </h3>
                     </div>
                     <p className={`text-sm mb-1 ${isOngoing ? 'text-indigo-700' : 'text-slate-600'}`}>📍 {getLocationPath(a.location_id) || a.location_name}</p>
@@ -132,7 +134,7 @@ export default function Dashboard() {
                       </p>
                     )}
                     {a.time_type === 'permanent' && (
-                      <p className={`text-xs ${isOngoing ? 'text-indigo-600' : 'text-slate-500'}`}>Permanent Venue</p>
+                      <p className={`text-xs ${isOngoing ? 'text-indigo-600' : 'text-slate-500'}`}>{t('permanentVenue')}</p>
                     )}
                   </div>
                 );

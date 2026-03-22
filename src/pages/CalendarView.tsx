@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns';
 import { formatUTC8, isSameDayUTC8 } from '../utils/dateUtils';
 
 export default function CalendarView() {
   const { token } = useAuth();
+  const { t } = useLanguage();
   const [schedules, setSchedules] = useState<any[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -23,7 +25,7 @@ export default function CalendarView() {
   }, [token]);
 
   const getLocationPath = (locId: string, visited = new Set<string>()): string => {
-    if (visited.has(locId)) return '[Circular Reference]';
+    if (visited.has(locId)) return t('circularReference');
     visited.add(locId);
     
     const loc = locations.find((l: any) => l.id === locId);
@@ -92,7 +94,7 @@ export default function CalendarView() {
       {/* Calendar Grid */}
       <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6 flex flex-col">
         <div className="flex justify-between items-center mb-4 md:mb-6">
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900">Calendar</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-slate-900">{t('calendar')}</h1>
           <div className="flex items-center gap-2 md:gap-4">
             <button 
               onClick={() => setCurrentDate(subMonths(currentDate, 1))}
@@ -113,8 +115,8 @@ export default function CalendarView() {
         <div className="grid grid-cols-7 mb-2">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
             <div key={d} className="text-center font-medium text-slate-500 text-xs md:text-sm py-1 md:py-2">
-              <span className="md:hidden">{d.charAt(0)}</span>
-              <span className="hidden md:inline">{d}</span>
+              <span className="md:hidden">{t(d.toLowerCase() as any).charAt(0)}</span>
+              <span className="hidden md:inline">{t(d.toLowerCase() as any)}</span>
             </div>
           ))}
         </div>
@@ -131,7 +133,7 @@ export default function CalendarView() {
         
         <div className="flex-1 overflow-y-auto pr-2 space-y-4">
           {selectedDaySchedules.length === 0 ? (
-            <p className="text-slate-500 text-center py-8">No tasks scheduled for this day.</p>
+            <p className="text-slate-500 text-center py-8">{t('noTasksScheduled')}</p>
           ) : (
             selectedDaySchedules.map(s => (
               <div 

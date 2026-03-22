@@ -88,7 +88,7 @@ export function setupSocketIO(server: HTTPServer) {
 
     // Handle incoming messages
     socket.on('send_message', async (data, callback) => {
-      const { id, group_id, content } = data;
+      const { id, group_id, content, attachment_type, attachment_id, attachment_data } = data;
       
       try {
         // Verify user has access to this group
@@ -107,8 +107,8 @@ export function setupSocketIO(server: HTTPServer) {
 
         // Write to DB
         const result = await pool.query(
-          'INSERT INTO chat_messages (id, group_id, user_id, content, is_admin) VALUES ($1, $2, $3, $4, $5) RETURNING created_at',
-          [id, group_id, user.id, content, is_admin]
+          'INSERT INTO chat_messages (id, group_id, user_id, content, is_admin, attachment_type, attachment_id, attachment_data) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING created_at',
+          [id, group_id, user.id, content, is_admin, attachment_type || null, attachment_id || null, attachment_data ? JSON.stringify(attachment_data) : null]
         );
 
         const created_at = result.rows[0].created_at;
@@ -122,7 +122,11 @@ export function setupSocketIO(server: HTTPServer) {
           content,
           created_at,
           is_system: false,
-          is_admin
+          is_admin,
+          attachment_type,
+          attachment_id,
+          attachment_data,
+          attachment_exists: !!attachment_id
         });
 
         // Send ACK to sender
@@ -143,19 +147,33 @@ export function setupSocketIO(server: HTTPServer) {
         
         if (user.role === 'ADMIN') {
           query = `
-            SELECT m.*, u.username, u.role
+            SELECT m.*, u.username, u.role,
+                   CASE 
+                     WHEN m.attachment_type = 'schedule' THEN s.id IS NOT NULL
+                     WHEN m.attachment_type = 'activity' THEN a.id IS NOT NULL
+                     ELSE true
+                   END as attachment_exists
             FROM chat_messages m
             LEFT JOIN users u ON m.user_id = u.id
+            LEFT JOIN schedules s ON m.attachment_type = 'schedule' AND m.attachment_id = s.id
+            LEFT JOIN activities a ON m.attachment_type = 'activity' AND m.attachment_id = a.id
             WHERE m.created_at > $1
             ORDER BY m.created_at ASC
           `;
           params = [last_message_time];
         } else {
           query = `
-            SELECT m.*, u.username, u.role
+            SELECT m.*, u.username, u.role,
+                   CASE 
+                     WHEN m.attachment_type = 'schedule' THEN s.id IS NOT NULL
+                     WHEN m.attachment_type = 'activity' THEN a.id IS NOT NULL
+                     ELSE true
+                   END as attachment_exists
             FROM chat_messages m
             LEFT JOIN users u ON m.user_id = u.id
             JOIN chat_memberships cm ON m.group_id = cm.group_id
+            LEFT JOIN schedules s ON m.attachment_type = 'schedule' AND m.attachment_id = s.id
+            LEFT JOIN activities a ON m.attachment_type = 'activity' AND m.attachment_id = a.id
             WHERE cm.user_id = $1 AND m.created_at > $2
             ORDER BY m.created_at ASC
           `;

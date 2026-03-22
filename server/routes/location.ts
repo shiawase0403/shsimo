@@ -18,11 +18,11 @@ router.get('/', async (req, res) => {
 
 // Create location
 router.post('/', requireAdmin, async (req, res) => {
-  const { name, parent_id } = req.body;
+  const { name, parent_id, latitude, longitude } = req.body;
   try {
     const result = await pool.query(
-      'INSERT INTO locations (name, parent_id) VALUES ($1, $2) RETURNING *',
-      [name, parent_id || null]
+      'INSERT INTO locations (name, parent_id, latitude, longitude) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, parent_id || null, latitude || null, longitude || null]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -32,11 +32,11 @@ router.post('/', requireAdmin, async (req, res) => {
 
 // Update location
 router.put('/:id', requireAdmin, async (req, res) => {
-  const { name, parent_id } = req.body;
+  const { name, parent_id, latitude, longitude } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE locations SET name = $1, parent_id = $2 WHERE id = $3 RETURNING *',
-      [name, parent_id || null, req.params.id]
+      'UPDATE locations SET name = $1, parent_id = $2, latitude = $3, longitude = $4 WHERE id = $5 RETURNING *',
+      [name, parent_id || null, latitude || null, longitude || null, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Location not found' });
     res.json(result.rows[0]);

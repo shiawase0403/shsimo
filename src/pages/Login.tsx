@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -8,6 +9,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,7 +27,7 @@ export default function Login() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Login failed');
+        throw new Error(data.error || t('loginFailed'));
       }
 
       login(data.token, data.user);
@@ -44,7 +46,7 @@ export default function Login() {
           SHS IMO 2026
         </h2>
         <p className="mt-2 text-center text-sm text-slate-600">
-          Volunteer Management System
+          {t('volunteerSystem')}
         </p>
       </div>
 
@@ -58,7 +60,7 @@ export default function Login() {
             )}
             <div>
               <label className="block text-sm font-medium text-slate-700">
-                Username
+                {t('username')}
               </label>
               <div className="mt-1">
                 <input
@@ -73,7 +75,7 @@ export default function Login() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700">
-                Password
+                {t('password')}
               </label>
               <div className="mt-1">
                 <input
@@ -92,7 +94,7 @@ export default function Login() {
                 disabled={loading}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
               >
-                {loading ? 'Signing in...' : 'Sign in'}
+                {loading ? t('loading') : t('loginBtn')}
               </button>
             </div>
           </form>

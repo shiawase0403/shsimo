@@ -53,6 +53,28 @@ async function startServer() {
   app.use('/api/groups', groupRoutes);
   app.use('/api/chat', chatRoutes);
 
+  // 矢量瓦片专用路由：支持 GZIP 智能检测
+  app.get('/tiles/:z/:x/:y.mvt', (req, res) => {
+    const { z, x, y } = req.params;
+    const filePath = path.join(process.cwd(), 'public', 'tiles', z, x, `${y}.mvt`);
+
+    fs.readFile(filePath, (err, buffer) => {
+      if (err) {
+        return res.status(404).send('Tile Not Found');
+      }
+
+      res.set('Content-Type', 'application/x-protobuf');
+
+      // GZIP 智能检测
+      const isGzip = buffer[0] === 0x1F && buffer[1] === 0x8B;
+      if (isGzip) {
+        res.set('Content-Encoding', 'gzip');
+      }
+
+      res.send(buffer);
+    });
+  });
+
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
   });

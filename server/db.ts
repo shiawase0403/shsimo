@@ -20,6 +20,16 @@ export async function testDbConnection() {
   try {
     const client = await pool.connect();
     console.log('Successfully connected to PostgreSQL database.');
+    
+    // Auto-migrate locations table to add latitude and longitude
+    try {
+      await client.query('ALTER TABLE locations ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;');
+      await client.query('ALTER TABLE locations ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;');
+      await client.query('UPDATE locations SET longitude = 121.43156949263963, latitude = 31.14181433840916 WHERE parent_id IS NULL AND longitude IS NULL;');
+    } catch (e) {
+      console.error('Migration error:', e);
+    }
+    
     client.release();
   } catch (err) {
     console.error('Failed to connect to PostgreSQL database:', err);

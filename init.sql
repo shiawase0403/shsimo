@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS user_groups (
 CREATE INDEX IF NOT EXISTS idx_user_groups_parent_id ON user_groups(parent_id);
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS user_group_id UUID REFERENCES user_groups(id) ON DELETE SET NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname VARCHAR(255);
 
 CREATE TABLE IF NOT EXISTS locations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -100,6 +101,17 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_group_id ON chat_messages(group_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at);
+
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_type VARCHAR(50);
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_id UUID;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_data JSONB;
+
+CREATE TABLE IF NOT EXISTS chat_read_status (
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    group_id UUID REFERENCES user_groups(id) ON DELETE CASCADE,
+    last_read_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, group_id)
+);
 
 -- Insert default admin (password is 'shsimo2026' hashed with bcrypt)
 INSERT INTO users (username, password, role) 

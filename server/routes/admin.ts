@@ -1,17 +1,37 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { pool } from '../db.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth.js';
 import { syncUserChatGroups, syncAllUsersChatGroups } from '../services/chat.js';
 
 const router = Router();
 
 router.use(authenticate, requireAdmin);
 
+// Helper to get all sub-group IDs recursively
+async function getSubGroupIds(groupId: string): Promise<string[]> {
+  const result = await pool.query(`
+    WITH RECURSIVE sub_groups AS (
+      SELECT id FROM user_groups WHERE id = $1
+      UNION ALL
+      SELECT g.id FROM user_groups g
+      INNER JOIN sub_groups sg ON g.parent_id = sg.id
+    )
+    SELECT id FROM sub_groups;
+  `, [groupId]);
+  return result.rows.map(row => row.id);
+}
+
+// Helper to get user's group ID
+async function getUserGroupId(userId: string): Promise<string | null> {
+  const result = await pool.query('SELECT user_group_id FROM users WHERE id = $1', [userId]);
+  return result.rows[0]?.user_group_id || null;
+}
+
 // Get all users
 router.get('/users', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, username, role, last_login_at, created_at, user_group_id FROM users WHERE role = $1', ['USER']);
+    const result = await pool.query('SELECT id, username, nickname, role, last_login_at, created_at, user_group_id FROM users WHERE role != $1', ['ADMIN']);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -20,12 +40,12 @@ router.get('/users', async (req, res) => {
 
 // Create user
 router.post('/users', async (req, res) => {
-  const { username, password, user_group_id } = req.body;
+  const { username, password, user_group_id, nickname } = req.body;
   try {
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (username, password, role, user_group_id) VALUES ($1, $2, $3, $4) RETURNING id, username, role, user_group_id',
-      [username, hash, 'USER', user_group_id || null]
+      'INSERT INTO users (username, password, role, user_group_id, nickname) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, nickname, role, user_group_id',
+      [username, hash, 'USER', user_group_id || null, nickname || null]
     );
     await syncUserChatGroups(result.rows[0].id);
     res.json(result.rows[0]);
@@ -39,19 +59,19 @@ router.post('/users', async (req, res) => {
 
 // Update user
 router.put('/users/:id', async (req, res) => {
-  const { username, password, user_group_id } = req.body;
+  const { username, password, user_group_id, nickname } = req.body;
   try {
     let result;
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       result = await pool.query(
-        'UPDATE users SET username = $1, password = $2, user_group_id = $3 WHERE id = $4 AND role = $5 RETURNING id, username, role, user_group_id',
-        [username, hash, user_group_id || null, req.params.id, 'USER']
+        'UPDATE users SET username = $1, password = $2, user_group_id = $3, nickname = $4 WHERE id = $5 AND role = $6 RETURNING id, username, nickname, role, user_group_id',
+        [username, hash, user_group_id || null, nickname || null, req.params.id, 'USER']
       );
     } else {
       result = await pool.query(
-        'UPDATE users SET username = $1, user_group_id = $2 WHERE id = $3 AND role = $4 RETURNING id, username, role, user_group_id',
-        [username, user_group_id || null, req.params.id, 'USER']
+        'UPDATE users SET username = $1, user_group_id = $2, nickname = $3 WHERE id = $4 AND role = $5 RETURNING id, username, nickname, role, user_group_id',
+        [username, user_group_id || null, nickname || null, req.params.id, 'USER']
       );
     }
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });

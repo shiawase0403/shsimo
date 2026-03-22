@@ -71,4 +71,20 @@ router.post('/change-password', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+// Get User Tree
+router.get('/user-tree', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const groupsResult = await pool.query('SELECT id, name, parent_id FROM user_groups ORDER BY created_at ASC');
+    const usersResult = await pool.query('SELECT id, username, nickname, role, user_group_id FROM users ORDER BY username ASC');
+    
+    res.json({
+      groups: groupsResult.rows,
+      users: usersResult.rows
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 export default router;
